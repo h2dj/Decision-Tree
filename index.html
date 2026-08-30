@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>의사결정 트리 빌더</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-icon">🌳</span>
+        <span class="brand-title">의사결정 트리 빌더</span>
+      </div>
+      <div class="toolbar" role="toolbar" aria-label="도구 모음">
+        <button id="btn-new" class="btn" title="새 트리 만들기">새 트리</button>
+        <span class="sep"></span>
+        <button id="btn-import" class="btn" title="JSON 파일 불러오기">불러오기</button>
+        <button id="btn-export-json" class="btn" title="JSON으로 저장">JSON 내보내기</button>
+        <button id="btn-export-svg" class="btn" title="이미지(SVG)로 저장">SVG 내보내기</button>
+        <span class="sep"></span>
+        <button id="btn-zoom-out" class="btn icon-btn" title="축소">−</button>
+        <button id="btn-zoom-reset" class="btn icon-btn" title="화면 맞춤">⤢</button>
+        <button id="btn-zoom-in" class="btn icon-btn" title="확대">+</button>
+      </div>
+      <input id="file-input" type="file" accept="application/json" hidden />
+    </header>
+
+    <main class="workspace">
+      <div id="canvas" class="canvas">
+        <div id="viewport" class="viewport">
+          <svg id="edges-svg" class="edges-svg">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5"
+                      markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 Z" fill="var(--edge-color)"></path>
+              </marker>
+            </defs>
+            <g id="edges-layer"></g>
+          </svg>
+          <div id="labels-layer" class="labels-layer"></div>
+          <div id="nodes-layer" class="nodes-layer"></div>
+        </div>
+      </div>
+
+      <aside class="sidebar">
+        <h2>선택된 노드</h2>
+        <div id="side-empty" class="side-empty">노드를 클릭해 선택하세요.</div>
+
+        <div id="side-content" class="side-content" hidden>
+          <div class="side-field">
+            <label>내용</label>
+            <p id="side-node-text" class="side-node-text"></p>
+            <p class="hint">캔버스에서 노드를 클릭하면 바로 내용을 수정할 수 있어요.</p>
+          </div>
+
+          <div class="side-field">
+            <label>분기 (자식 노드로 가는 선택지)</label>
+            <ul id="side-branch-list" class="branch-list"></ul>
+            <button id="btn-add-branch" class="btn btn-block">+ 분기 추가</button>
+          </div>
+
+          <div class="side-field">
+            <button id="btn-delete-node" class="btn btn-danger btn-block">
+              이 노드와 하위 트리 삭제
+            </button>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="statusbar">
+      <span>💡 노드 텍스트를 클릭해 바로 수정 · 캔버스를 드래그해 이동 · 휠로 확대/축소 · Delete 키로 선택 노드 삭제</span>
+      <span id="autosave-indicator" class="autosave-indicator"></span>
+    </footer>
+  </div>
+
+  <script src="treeModel.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

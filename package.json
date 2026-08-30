@@ -1,0 +1,11 @@
+{
+  "name": "decision-tree-builder",
+  "version": "1.0.0",
+  "description": "브라우저에서 의사결정 트리를 그리고 편집하는 인터랙티브 다이어그램 빌더",
+  "private": true,
+  "scripts": {
+    "test": "node tests/treeModel.test.js",
+    "start": "npx --yes serve ."
+  },
+  "license": "MIT"
+}
