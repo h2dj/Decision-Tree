@@ -62,11 +62,14 @@ html, body {
   flex-shrink: 0;
 }
 
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; flex-shrink: 0; }
 .brand-icon { font-size: 20px; }
+.brand-title { white-space: nowrap; }
 
 .toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
+
+.menu-toggle { display: none; margin-left: auto; }
 
 .btn {
   border: 1px solid var(--border);
@@ -109,6 +112,7 @@ html, body {
   cursor: grab;
 }
 .canvas.panning { cursor: grabbing; }
+.canvas { touch-action: none; } /* 손가락 드래그로 패닝할 때 브라우저 스크롤/확대와 충돌하지 않도록 */
 
 .viewport {
   position: absolute;
@@ -209,7 +213,24 @@ html, body {
   padding: 16px;
   overflow-y: auto;
 }
-.sidebar h2 { font-size: 14px; margin: 0 0 12px; color: var(--text-muted); }
+.sidebar h2 { font-size: 14px; margin: 0; color: var(--text-muted); }
+.sidebar-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.sidebar-close {
+  display: none;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px;
+  cursor: pointer;
+}
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  z-index: 40;
+}
 .side-empty { color: var(--text-muted); font-size: 13px; }
 
 .side-field { margin-bottom: 20px; }
@@ -275,8 +296,10 @@ html, body {
   justify-content: space-between;
   align-items: center;
 }
-.autosave-indicator { opacity: 0; transition: opacity 0.3s; }
+.autosave-indicator { opacity: 0; transition: opacity 0.3s; flex-shrink: 0; }
 .autosave-indicator.show { opacity: 1; }
+.statusbar-hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statusbar-hint-mobile { display: none; }
 
 /* --- Modal --- */
 .modal-overlay {
@@ -307,3 +330,56 @@ html, body {
   color: var(--text);
 }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* --- 모바일 --- */
+@media (max-width: 760px) {
+  .topbar { gap: 8px; padding: 8px 12px; position: relative; }
+  .brand-title { display: none; }
+  .menu-toggle { display: inline-flex; align-items: center; justify-content: center; }
+
+  /* 툴바를 햄버거 메뉴로 접었다 펼치는 드롭다운 패널로 전환 */
+  .toolbar {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px 14px;
+    box-shadow: var(--shadow);
+    max-height: calc(100vh - 52px);
+    overflow-y: auto;
+    z-index: 30;
+  }
+  .toolbar.open { display: flex; }
+  .toolbar .sep { display: none; }
+  .toolbar .dir-toggle { display: flex; width: 100%; }
+  .toolbar .dir-toggle .btn { flex: 1; }
+  .toolbar > .btn:not(.icon-btn) { width: 100%; }
+  .toolbar > .btn.icon-btn { flex: 1; width: auto; }
+
+  /* 캔버스가 전체 폭을 쓰고, 사이드바는 오른쪽에서 슬라이드해 들어오는 패널로 전환 */
+  .workspace { position: relative; }
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: min(320px, 88vw);
+    border-left: 1px solid var(--border);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    z-index: 50;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-close { display: inline-flex; }
+  .sidebar-backdrop[hidden] { display: none; }
+
+  .statusbar-hint-desktop { display: none; }
+  .statusbar-hint-mobile { display: inline; }
+  .statusbar { padding: 6px 10px; gap: 8px; }
+}

@@ -13,7 +13,8 @@
         <span class="brand-icon">🌳</span>
         <span class="brand-title">의사결정 트리 빌더</span>
       </div>
-      <div class="toolbar" role="toolbar" aria-label="도구 모음">
+      <button id="btn-menu-toggle" class="btn icon-btn menu-toggle" title="메뉴" aria-label="메뉴 열기">☰</button>
+      <div id="toolbar" class="toolbar" role="toolbar" aria-label="도구 모음">
         <button id="btn-new" class="btn" title="새 트리 만들기">새 트리</button>
         <span class="sep"></span>
         <button id="btn-import" class="btn" title="JSON 또는 마크다운(.md) 파일 불러오기">불러오기</button>
@@ -52,8 +53,13 @@
         </div>
       </div>
 
-      <aside class="sidebar">
-        <h2>선택된 노드</h2>
+      <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
+
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+          <h2>선택된 노드</h2>
+          <button id="btn-close-sidebar" class="sidebar-close" aria-label="사이드바 닫기">✕</button>
+        </div>
         <div id="side-empty" class="side-empty">노드를 클릭해 선택하세요.</div>
 
         <div id="side-content" class="side-content" hidden>
@@ -85,7 +91,14 @@
     </main>
 
     <footer class="statusbar">
-      <span>💡 노드 텍스트를 클릭해 바로 수정 · 캔버스를 드래그해 이동 · 휠로 확대/축소 · Insert(Tab) 키로 분기 추가(예: 예 / 아니오 / 보류) · Delete 키로 선택 노드 삭제 · 트리 방향 전환 · MD로 노션 호환 내보내기/가져오기</span>
+      <span class="statusbar-hint statusbar-hint-desktop">
+        💡 노드 텍스트를 클릭해 바로 수정 · 캔버스를 드래그해 이동 · 휠로 확대/축소 · Insert(Tab)
+        키로 분기 추가(예: 예 / 아니오 / 보류) · Delete 키로 선택 노드 삭제 · 트리 방향 전환 · MD로
+        노션 호환 내보내기/가져오기
+      </span>
+      <span class="statusbar-hint statusbar-hint-mobile">
+        💡 노드를 탭해 선택/수정 · 캔버스를 드래그해 이동 · ☰ 메뉴에서 방향 전환·내보내기
+      </span>
       <span id="autosave-indicator" class="autosave-indicator"></span>
     </footer>
   </div>
