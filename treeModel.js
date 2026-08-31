@@ -70,6 +70,20 @@
   }
 
   /**
+   * 분기 입력 문자열을 "/"로 구분된 여러 분기 이름으로 나눈다.
+   * 예: "예 / 아니오 / 보류" -> ["예", "아니오", "보류"]
+   * 앞뒤 공백은 제거하고 빈 항목은 무시한다. 입력이 비어있으면 기본값 하나를 반환한다.
+   */
+  function parseBranchLabels(raw) {
+    if (raw == null) return ['분기'];
+    const parts = String(raw)
+      .split('/')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    return parts.length > 0 ? parts : ['분기'];
+  }
+
+  /**
    * 트리 레이아웃 계산 (그리드 단위, 픽셀 아님).
    * - depth: 루트=0부터 내려가는 레벨
    * - col: 리프 노드는 왼쪽부터 0,1,2... 정수, 내부 노드는 자식들의 평균
@@ -126,6 +140,7 @@
     findNode,
     findEdge,
     removeChildEdge,
+    parseBranchLabels,
     computeLayout,
     countNodes,
     isValidTree,
