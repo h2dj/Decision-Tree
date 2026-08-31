@@ -2,6 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'decisionTreeBuilder.tree.v1';
+  const DIRECTION_STORAGE_KEY = 'decisionTreeBuilder.direction.v1';
 
   // 레이아웃 상수 (픽셀)
   const NODE_W = 200;
@@ -27,7 +28,10 @@
     btnNew: document.getElementById('btn-new'),
     btnImport: document.getElementById('btn-import'),
     btnExportJson: document.getElementById('btn-export-json'),
+    btnExportMd: document.getElementById('btn-export-md'),
     btnExportSvg: document.getElementById('btn-export-svg'),
+    btnDirTb: document.getElementById('btn-dir-tb'),
+    btnDirLr: document.getElementById('btn-dir-lr'),
     btnZoomIn: document.getElementById('btn-zoom-in'),
     btnZoomOut: document.getElementById('btn-zoom-out'),
     btnZoomReset: document.getElementById('btn-zoom-reset'),
@@ -38,9 +42,18 @@
   // --- 상태 ---
   let tree = loadFromStorage() || createDefaultTree();
   let selectedId = tree.id;
+  let direction = loadDirection(); // 'TB'(위→아래) | 'LR'(왼→오)
   let scale = 1;
   let panX = PADDING;
   let panY = PADDING;
+
+  function loadDirection() {
+    try {
+      return localStorage.getItem(DIRECTION_STORAGE_KEY) === 'LR' ? 'LR' : 'TB';
+    } catch (e) {
+      return 'TB';
+    }
+  }
 
   function createDefaultTree() {
     const root = TreeModel.createNode('오늘 배포를 진행할까요?');
@@ -117,19 +130,45 @@
   }
 
   // --- 좌표 계산 ---
+  // TreeModel.computeLayout()이 주는 (col, depth)는 방향에 무관한 그리드 좌표다.
+  // 'TB'는 depth를 세로축(아래로), col을 가로축으로, 'LR'은 그 반대로 픽셀에 대응시킨다.
   function computePixelPositions() {
     const { nodeInfo, leafCount, maxDepth } = TreeModel.computeLayout(tree);
     const positions = new Map();
+    const isLR = direction === 'LR';
+    const depthStep = isLR ? NODE_W + H_GAP : NODE_H + V_GAP;
+    const sibStep = isLR ? NODE_H + V_GAP : NODE_W + H_GAP;
+
     nodeInfo.forEach((info, id) => {
-      positions.set(id, {
-        x: info.col * (NODE_W + H_GAP),
-        y: info.depth * (NODE_H + V_GAP),
-        depth: info.depth,
-      });
+      const along = info.depth * depthStep; // 트리가 뻗어나가는 방향(깊이)
+      const across = info.col * sibStep; // 형제 노드가 늘어서는 방향
+      positions.set(id, isLR ? { x: along, y: across } : { x: across, y: along });
     });
-    const width = Math.max(leafCount * (NODE_W + H_GAP) - H_GAP, NODE_W) + PADDING * 2;
-    const height = (maxDepth + 1) * (NODE_H + V_GAP) - V_GAP + PADDING * 2;
+
+    const depthExtent = (maxDepth + 1) * depthStep - (isLR ? H_GAP : V_GAP);
+    const sibExtent = Math.max(leafCount * sibStep - (isLR ? V_GAP : H_GAP), isLR ? NODE_H : NODE_W);
+    const width = (isLR ? depthExtent : sibExtent) + PADDING * 2;
+    const height = (isLR ? sibExtent : depthExtent) + PADDING * 2;
     return { positions, width, height };
+  }
+
+  // 부모→자식 엣지의 경로와 라벨 위치를 방향에 맞게 계산한다.
+  // render()의 SVG 미리보기와 SVG 내보내기가 이 로직을 공유한다.
+  function edgeGeometry(dir, parentPos, childPos) {
+    if (dir === 'LR') {
+      const x1 = parentPos.x + NODE_W;
+      const y1 = parentPos.y + NODE_H / 2;
+      const x2 = childPos.x;
+      const y2 = childPos.y + NODE_H / 2;
+      const midX = x1 + (x2 - x1) / 2;
+      return { d: `M${x1},${y1} H${midX} V${y2} H${x2}`, labelX: midX, labelY: y2 };
+    }
+    const x1 = parentPos.x + NODE_W / 2;
+    const y1 = parentPos.y + NODE_H;
+    const x2 = childPos.x + NODE_W / 2;
+    const y2 = childPos.y;
+    const midY = y1 + (y2 - y1) / 2;
+    return { d: `M${x1},${y1} V${midY} H${x2} V${y2}`, labelX: x2, labelY: midY };
   }
 
   // --- 렌더링 ---
@@ -205,15 +244,10 @@
   }
 
   function renderEdge(parentId, parentPos, edge, childPos) {
-    const x1 = parentPos.x + NODE_W / 2;
-    const y1 = parentPos.y + NODE_H;
-    const x2 = childPos.x + NODE_W / 2;
-    const y2 = childPos.y;
-    const midY = y1 + (y2 - y1) / 2;
+    const geo = edgeGeometry(direction, parentPos, childPos);
 
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    const d = `M${x1},${y1} V${midY} H${x2} V${y2}`;
-    path.setAttribute('d', d);
+    path.setAttribute('d', geo.d);
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', 'var(--edge-color)');
     path.setAttribute('stroke-width', '1.75');
@@ -226,8 +260,8 @@
     label.spellcheck = false;
     label.textContent = edge.label;
     label.dataset.edgeId = edge.id;
-    label.style.left = x2 + 'px';
-    label.style.top = midY + 'px';
+    label.style.left = geo.labelX + 'px';
+    label.style.top = geo.labelY + 'px';
     label.addEventListener('mousedown', (e) => e.stopPropagation());
     label.addEventListener('input', () => {
       edge.label = label.textContent;
@@ -331,22 +365,38 @@
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const parsed = JSON.parse(reader.result);
-        if (!TreeModel.isValidTree(parsed)) {
-          alert('올바른 의사결정 트리 JSON 파일이 아닙니다.');
-          return;
-        }
-        tree = parsed;
+        tree = TreeModel.importTreeFromFileContent(String(reader.result), file.name);
         selectedId = tree.id;
         saveToStorage();
         render();
       } catch (err) {
-        alert('JSON 파일을 읽는 중 오류가 발생했습니다: ' + err.message);
+        alert(err.message);
       }
     };
     reader.readAsText(file);
     e.target.value = '';
   });
+
+  // --- 트리 방향 (위→아래 / 왼→오) ---
+  function updateDirButtons() {
+    el.btnDirTb.classList.toggle('active', direction === 'TB');
+    el.btnDirLr.classList.toggle('active', direction === 'LR');
+  }
+
+  function setDirection(next) {
+    if (direction === next) return;
+    direction = next;
+    try {
+      localStorage.setItem(DIRECTION_STORAGE_KEY, direction);
+    } catch (e) {
+      // localStorage를 쓸 수 없는 환경이면 조용히 무시한다.
+    }
+    updateDirButtons();
+    render();
+  }
+
+  el.btnDirTb.addEventListener('click', () => setDirection('TB'));
+  el.btnDirLr.addEventListener('click', () => setDirection('LR'));
 
   function downloadBlob(content, filename, type) {
     const blob = new Blob([content], { type });
@@ -362,6 +412,10 @@
 
   el.btnExportJson.addEventListener('click', () => {
     downloadBlob(JSON.stringify(tree, null, 2), 'decision-tree.json', 'application/json');
+  });
+
+  el.btnExportMd.addEventListener('click', () => {
+    downloadBlob(TreeModel.treeToMarkdown(tree), 'decision-tree.md', 'text/markdown');
   });
 
   el.btnExportSvg.addEventListener('click', () => {
@@ -384,20 +438,16 @@
       const pos = offset(node.id);
       for (const edge of node.children) {
         const childPos = offset(edge.node.id);
-        const x1 = pos.x + NODE_W / 2;
-        const y1 = pos.y + NODE_H;
-        const x2 = childPos.x + NODE_W / 2;
-        const y2 = childPos.y;
-        const midY = y1 + (y2 - y1) / 2;
+        const geo = edgeGeometry(direction, pos, childPos);
         parts.push(
-          `<path d="M${x1},${y1} V${midY} H${x2} V${y2}" fill="none" stroke="#94a3b8" stroke-width="1.75" marker-end="url(#arrow)"/>`
+          `<path d="${geo.d}" fill="none" stroke="#94a3b8" stroke-width="1.75" marker-end="url(#arrow)"/>`
         );
         const label = escapeXml(edge.label);
         parts.push(
-          `<rect x="${x2 - 40}" y="${midY - 10}" width="80" height="20" rx="10" fill="#ffffff" stroke="#e2e8f0"/>`
+          `<rect x="${geo.labelX - 40}" y="${geo.labelY - 10}" width="80" height="20" rx="10" fill="#ffffff" stroke="#e2e8f0"/>`
         );
         parts.push(
-          `<text x="${x2}" y="${midY + 4}" text-anchor="middle" font-size="11" fill="#64748b">${label}</text>`
+          `<text x="${geo.labelX}" y="${geo.labelY + 4}" text-anchor="middle" font-size="11" fill="#64748b">${label}</text>`
         );
         walkEdges(edge.node);
       }
@@ -520,5 +570,6 @@
   });
 
   // --- 초기 렌더 ---
+  updateDirButtons();
   render();
 })();

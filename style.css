@@ -82,6 +82,11 @@ html, body {
 .btn:hover { background: var(--accent-weak); border-color: var(--accent); }
 .btn:active { transform: translateY(1px); }
 .icon-btn { width: 32px; padding: 7px 0; font-weight: 700; }
+
+.dir-toggle { display: flex; gap: 2px; }
+.dir-btn { border-radius: 8px; }
+.dir-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.dir-btn.active:hover { background: var(--accent); }
 .btn-block { width: 100%; margin-top: 8px; }
 .btn-danger { color: var(--danger); border-color: var(--danger); background: var(--danger-weak); }
 .btn-danger:hover { background: var(--danger); color: #fff; }

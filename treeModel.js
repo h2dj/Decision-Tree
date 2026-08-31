@@ -119,6 +119,121 @@
     return count;
   }
 
+  /** 마크다운 한 줄에 안전하게 쓸 수 있도록 텍스트를 다듬는다. */
+  function escapeMdText(value) {
+    let text = String(value == null ? '' : value)
+      .replace(/\r\n|\r|\n/g, ' ')
+      .trim();
+    // "*"로 시작하면 재가져오기(또는 다른 마크다운 렌더러)에서 굵게/기울임으로
+    // 오인식될 수 있으므로 이스케이프한다.
+    if (text.startsWith('*')) text = '\\' + text;
+    return text;
+  }
+
+  /**
+   * 트리를 노션과 호환되는 중첩 불릿 목록 마크다운으로 변환한다.
+   * 루트는 라벨 없이, 그 아래는 "**분기 이름:** 노드 내용" 형태의 불릿으로 표현한다.
+   *
+   * 예:
+   * - 오늘 배포를 진행할까요?
+   *   - **예:** 모든 테스트가 통과했나요?
+   *     - **예:** 배포 진행
+   *   - **아니오:** 배포 보류
+   */
+  function treeToMarkdown(rootNode) {
+    function lines(node, depth, label) {
+      const indent = '  '.repeat(depth);
+      const prefix = label != null ? `**${escapeMdText(label).replace(/\*/g, '')}:** ` : '';
+      const out = [`${indent}- ${prefix}${escapeMdText(node.text)}`];
+      for (const edge of node.children || []) {
+        out.push(...lines(edge.node, depth + 1, edge.label));
+      }
+      return out;
+    }
+    return lines(rootNode, 0, null).join('\n') + '\n';
+  }
+
+  /**
+   * 중첩 불릿 목록 마크다운을 트리로 되돌린다. treeToMarkdown이 만든 형식뿐 아니라
+   * 노션에서 내보낸 "- **라벨**: 내용" / "- **라벨:** 내용" 형태도 함께 인식한다.
+   * 들여쓰기 폭(2/4칸, 탭)에 관계없이 상대적인 깊이만으로 계층을 재구성한다.
+   * 목록 항목을 하나도 찾지 못하면 null을 반환한다.
+   */
+  function parseMarkdownToTree(markdown) {
+    const lines = String(markdown || '').split(/\r\n|\r|\n/);
+    const bulletRe = /^(\s*)[-*+]\s+(.*)$/;
+    const labelRe = /^\*\*([^*]+)\*\*:?\s*(.*)$/;
+
+    let root = null;
+    const stack = []; // [{ indent, node }], 얕은 순서로 쌓인다
+
+    for (const rawLine of lines) {
+      const m = rawLine.match(bulletRe);
+      if (!m) continue;
+      const indent = m[1].replace(/\t/g, '    ').length;
+      let content = m[2].trim();
+      if (!content) continue;
+
+      let label = null;
+      const labelMatch = content.match(labelRe);
+      if (labelMatch) {
+        label = labelMatch[1].trim().replace(/:$/, '').trim();
+        content = labelMatch[2].trim();
+      }
+
+      const node = createNode(content || '새 질문');
+
+      while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+
+      if (stack.length === 0) {
+        if (root === null) {
+          root = node;
+        } else {
+          // 최상위 불릿이 여러 개면(형식이 어긋난 문서) 데이터 손실을 막기 위해
+          // 루트의 추가 분기로 붙인다.
+          addChild(root, label || `분기 ${root.children.length + 1}`, node);
+        }
+      } else {
+        const parent = stack[stack.length - 1].node;
+        addChild(parent, label || `분기 ${parent.children.length + 1}`, node);
+      }
+
+      stack.push({ indent, node });
+    }
+
+    return root;
+  }
+
+  /**
+   * 파일 내용으로부터 트리를 만든다. 확장자가 있으면 그것을 우선 신뢰하고,
+   * 모호하면 내용으로 JSON/마크다운 여부를 추정한다. 실패 시 Error를 던진다.
+   */
+  function importTreeFromFileContent(content, filename) {
+    const lower = String(filename || '').toLowerCase();
+    const isMd = lower.endsWith('.md') || lower.endsWith('.markdown');
+    const isJson = lower.endsWith('.json');
+    const looksJson = !isMd && (isJson || content.trim().startsWith('{'));
+
+    if (looksJson) {
+      let parsed;
+      try {
+        parsed = JSON.parse(content);
+      } catch (err) {
+        throw new Error('JSON 파일을 읽는 중 오류가 발생했습니다: ' + err.message);
+      }
+      if (!isValidTree(parsed)) {
+        throw new Error('올바른 의사결정 트리 JSON 형식이 아닙니다.');
+      }
+      return parsed;
+    }
+
+    const parsed = parseMarkdownToTree(content);
+    if (!parsed) {
+      throw new Error('마크다운에서 목록(-) 구조를 찾을 수 없습니다.');
+    }
+    return parsed;
+  }
+
   /** 가져온 JSON이 트리 노드로서 최소한의 형태를 갖췄는지 검사한다. */
   function isValidTree(node) {
     if (!node || typeof node !== 'object') return false;
@@ -144,6 +259,9 @@
     computeLayout,
     countNodes,
     isValidTree,
+    treeToMarkdown,
+    parseMarkdownToTree,
+    importTreeFromFileContent,
   };
 
   if (typeof module !== 'undefined' && module.exports) {

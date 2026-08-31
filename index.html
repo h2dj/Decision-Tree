@@ -16,15 +16,23 @@
       <div class="toolbar" role="toolbar" aria-label="도구 모음">
         <button id="btn-new" class="btn" title="새 트리 만들기">새 트리</button>
         <span class="sep"></span>
-        <button id="btn-import" class="btn" title="JSON 파일 불러오기">불러오기</button>
+        <button id="btn-import" class="btn" title="JSON 또는 마크다운(.md) 파일 불러오기">불러오기</button>
         <button id="btn-export-json" class="btn" title="JSON으로 저장">JSON 내보내기</button>
+        <button id="btn-export-md" class="btn" title="노션에 붙여넣기 좋은 마크다운(.md)으로 저장">
+          MD 내보내기
+        </button>
         <button id="btn-export-svg" class="btn" title="이미지(SVG)로 저장">SVG 내보내기</button>
+        <span class="sep"></span>
+        <div class="dir-toggle" role="group" aria-label="트리 방향">
+          <button id="btn-dir-tb" class="btn dir-btn" title="위 → 아래로 뻗는 트리">⬇ 위→아래</button>
+          <button id="btn-dir-lr" class="btn dir-btn" title="왼쪽 → 오른쪽으로 뻗는 트리">➡ 왼→오</button>
+        </div>
         <span class="sep"></span>
         <button id="btn-zoom-out" class="btn icon-btn" title="축소">−</button>
         <button id="btn-zoom-reset" class="btn icon-btn" title="화면 맞춤">⤢</button>
         <button id="btn-zoom-in" class="btn icon-btn" title="확대">+</button>
       </div>
-      <input id="file-input" type="file" accept="application/json" hidden />
+      <input id="file-input" type="file" accept=".json,application/json,.md,.markdown,text/markdown" hidden />
     </header>
 
     <main class="workspace">
@@ -77,7 +85,7 @@
     </main>
 
     <footer class="statusbar">
-      <span>💡 노드 텍스트를 클릭해 바로 수정 · 캔버스를 드래그해 이동 · 휠로 확대/축소 · Insert(Tab) 키로 분기 추가(예: 예 / 아니오 / 보류) · Delete 키로 선택 노드 삭제</span>
+      <span>💡 노드 텍스트를 클릭해 바로 수정 · 캔버스를 드래그해 이동 · 휠로 확대/축소 · Insert(Tab) 키로 분기 추가(예: 예 / 아니오 / 보류) · Delete 키로 선택 노드 삭제 · 트리 방향 전환 · MD로 노션 호환 내보내기/가져오기</span>
       <span id="autosave-indicator" class="autosave-indicator"></span>
     </footer>
   </div>
