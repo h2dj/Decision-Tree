@@ -135,6 +135,10 @@ html, body {
   left: 0;
   width: 100%;
   height: 100%;
+  /* 이 컨테이너 자체는 캔버스 전체를 덮는 투명한 레이어라, 그대로 두면 위에 쌓인
+     레이어(.nodes-layer)가 아래 레이어(.labels-layer)의 클릭을 가로챈다.
+     컨테이너는 클릭을 통과시키고, 실제 보이는 노드/라벨만 클릭을 받도록 한다. */
+  pointer-events: none;
 }
 
 /* --- Node --- */
@@ -148,11 +152,13 @@ html, body {
   border-radius: 10px;
   box-shadow: var(--shadow);
   padding: 10px 12px;
-  transition: left 0.2s ease, top 0.2s ease, box-shadow 0.15s;
+  transition: left 0.2s ease, top 0.2s ease, box-shadow 0.15s, opacity 0.15s ease;
   user-select: none;
+  pointer-events: auto;
 }
 .node.leaf { border-left-color: var(--leaf); }
 .node.selected { box-shadow: 0 0 0 3px var(--accent-weak), var(--shadow); }
+.node.dimmed { opacity: 0.35; }
 
 .node-badge {
   display: inline-block;
@@ -195,6 +201,8 @@ html, body {
   max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: opacity 0.15s ease;
+  pointer-events: auto;
 }
 .edge-label:focus {
   background: var(--surface);
@@ -203,6 +211,12 @@ html, body {
   overflow: visible;
   white-space: normal;
 }
+.edge-label.dimmed { opacity: 0.35; }
+
+#edges-layer path {
+  transition: opacity 0.15s ease;
+}
+#edges-layer path.dimmed { opacity: 0.35; }
 
 /* --- Sidebar --- */
 .sidebar {

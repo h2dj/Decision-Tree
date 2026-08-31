@@ -48,6 +48,7 @@
   let tree = loadFromStorage() || createDefaultTree();
   let selectedId = tree.id;
   let direction = loadDirection(); // 'TB'(위→아래) | 'LR'(왼→오)
+  let highlightedEdgeId = null; // 분기 이름을 클릭해 강조 중인 엣지 (형제 분기들을 흐리게 표시)
   let scale = 1;
   let panX = PADDING;
   let panY = PADDING;
@@ -176,8 +177,40 @@
     return { d: `M${x1},${y1} V${midY} H${x2} V${y2}`, labelX: x2, labelY: midY };
   }
 
+  // --- 분기 강조 (흐림 처리) ---
+  // 형제 분기 중 선택되지 않은 쪽(및 그 하위 트리)을 흐리게 표시하기 위한 id 집합.
+  // render()가 새로 그릴 때 참조하고, 분기 이름 클릭 시에는 전체 재렌더 없이 직접 갱신한다
+  // (전체 재렌더는 방금 클릭한 라벨의 편집 포커스를 잃게 만들기 때문).
+  let dimNodeIds = new Set();
+  let dimEdgeIds = new Set();
+
+  function recomputeDim() {
+    const dim = TreeModel.computeDimmedIds(tree, highlightedEdgeId);
+    dimNodeIds = dim.nodeIds;
+    dimEdgeIds = dim.edgeIds;
+  }
+
+  function syncHighlightDom() {
+    recomputeDim();
+    el.nodesLayer.querySelectorAll('.node').forEach((div) => {
+      div.classList.toggle('dimmed', dimNodeIds.has(div.dataset.id));
+    });
+    el.labelsLayer.querySelectorAll('.edge-label').forEach((label) => {
+      label.classList.toggle('dimmed', dimEdgeIds.has(label.dataset.edgeId));
+    });
+    el.edgesLayer.querySelectorAll('path').forEach((path) => {
+      path.classList.toggle('dimmed', dimEdgeIds.has(path.dataset.edgeId));
+    });
+  }
+
+  function toggleEdgeHighlight(edgeId) {
+    highlightedEdgeId = highlightedEdgeId === edgeId ? null : edgeId;
+    syncHighlightDom();
+  }
+
   // --- 렌더링 ---
   function render() {
+    recomputeDim();
     const { positions, width, height } = computePixelPositions();
 
     el.viewport.style.width = width + 'px';
@@ -211,7 +244,11 @@
   function renderNode(node, pos) {
     const isLeaf = TreeModel.isLeaf(node);
     const div = document.createElement('div');
-    div.className = 'node' + (isLeaf ? ' leaf' : '') + (node.id === selectedId ? ' selected' : '');
+    div.className =
+      'node' +
+      (isLeaf ? ' leaf' : '') +
+      (node.id === selectedId ? ' selected' : '') +
+      (dimNodeIds.has(node.id) ? ' dimmed' : '');
     div.style.left = pos.x + 'px';
     div.style.top = pos.y + 'px';
     div.dataset.id = node.id;
@@ -257,10 +294,12 @@
     path.setAttribute('stroke', 'var(--edge-color)');
     path.setAttribute('stroke-width', '1.75');
     path.setAttribute('marker-end', 'url(#arrow)');
+    path.dataset.edgeId = edge.id;
+    if (dimEdgeIds.has(edge.id)) path.classList.add('dimmed');
     el.edgesLayer.appendChild(path);
 
     const label = document.createElement('div');
-    label.className = 'edge-label';
+    label.className = 'edge-label' + (dimEdgeIds.has(edge.id) ? ' dimmed' : '');
     label.contentEditable = 'true';
     label.spellcheck = false;
     label.textContent = edge.label;
@@ -268,6 +307,10 @@
     label.style.left = geo.labelX + 'px';
     label.style.top = geo.labelY + 'px';
     label.addEventListener('mousedown', (e) => e.stopPropagation());
+    label.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleEdgeHighlight(edge.id);
+    });
     label.addEventListener('input', () => {
       edge.label = label.textContent;
       saveToStorage();
@@ -379,6 +422,7 @@
     if (!confirm('현재 트리를 지우고 새로 시작할까요? 저장하지 않은 변경사항은 사라집니다.')) return;
     tree = TreeModel.createNode('새 질문');
     selectedId = tree.id;
+    highlightedEdgeId = null;
     saveToStorage();
     render();
   });
@@ -392,6 +436,7 @@
       try {
         tree = TreeModel.importTreeFromFileContent(String(reader.result), file.name);
         selectedId = tree.id;
+        highlightedEdgeId = null;
         saveToStorage();
         render();
       } catch (err) {
