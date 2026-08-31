@@ -124,4 +124,82 @@ test('isValidTree는 형태가 올바른 트리만 통과시킨다', () => {
   assert.strictEqual(TreeModel.isValidTree({ id: '1', text: 't', children: [{}] }), false);
 });
 
+// id를 무시하고 텍스트/라벨/구조만 비교한다 (마크다운 왕복 테스트용).
+function stripIds(node) {
+  return {
+    text: node.text,
+    children: (node.children || []).map((e) => ({ label: e.label, node: stripIds(e.node) })),
+  };
+}
+
+test('treeToMarkdown은 중첩 불릿 목록을 만든다', () => {
+  const root = TreeModel.createNode('오늘 배포를 진행할까요?');
+  const yes = TreeModel.addChild(root, '예', TreeModel.createNode('모든 테스트가 통과했나요?'));
+  TreeModel.addChild(root, '아니오', TreeModel.createNode('배포 보류'));
+  TreeModel.addChild(yes, '예', TreeModel.createNode('배포 진행'));
+
+  const md = TreeModel.treeToMarkdown(root);
+  const lines = md.split('\n');
+  assert.strictEqual(lines[0], '- 오늘 배포를 진행할까요?');
+  assert.strictEqual(lines[1], '  - **예:** 모든 테스트가 통과했나요?');
+  assert.strictEqual(lines[2], '    - **예:** 배포 진행');
+  assert.strictEqual(lines[3], '  - **아니오:** 배포 보류');
+});
+
+test('parseMarkdownToTree는 treeToMarkdown의 결과를 원래 구조로 되돌린다 (왕복)', () => {
+  const root = TreeModel.createNode('오늘 배포를 진행할까요?');
+  const yes = TreeModel.addChild(root, '예', TreeModel.createNode('모든 테스트가 통과했나요?'));
+  TreeModel.addChild(root, '아니오', TreeModel.createNode('배포 보류'));
+  TreeModel.addChild(yes, '예', TreeModel.createNode('배포 진행'));
+  TreeModel.addChild(yes, '아니오', TreeModel.createNode('테스트 수정 후 재검토'));
+
+  const md = TreeModel.treeToMarkdown(root);
+  const roundTripped = TreeModel.parseMarkdownToTree(md);
+  assert.deepStrictEqual(stripIds(roundTripped), stripIds(root));
+});
+
+test('parseMarkdownToTree는 들여쓰기 폭이 달라도(4칸/탭) 계층을 인식한다', () => {
+  const md = ['- 루트', '    - **예:** 자식A', '        - **아니오:** 손자'].join('\n');
+  const tree = TreeModel.parseMarkdownToTree(md);
+  assert.strictEqual(tree.text, '루트');
+  assert.strictEqual(tree.children[0].label, '예');
+  assert.strictEqual(tree.children[0].node.text, '자식A');
+  assert.strictEqual(tree.children[0].node.children[0].label, '아니오');
+  assert.strictEqual(tree.children[0].node.children[0].node.text, '손자');
+});
+
+test('parseMarkdownToTree는 "**라벨**: 내용" 형태(콜론이 굵게 밖)도 인식한다', () => {
+  const md = ['- 루트', '  - **예**: 자식A'].join('\n');
+  const tree = TreeModel.parseMarkdownToTree(md);
+  assert.strictEqual(tree.children[0].label, '예');
+  assert.strictEqual(tree.children[0].node.text, '자식A');
+});
+
+test('parseMarkdownToTree는 라벨이 없으면 순번으로 기본 라벨을 붙인다', () => {
+  const md = ['- 루트', '  - 자식A', '  - 자식B'].join('\n');
+  const tree = TreeModel.parseMarkdownToTree(md);
+  assert.strictEqual(tree.children[0].label, '분기 1');
+  assert.strictEqual(tree.children[1].label, '분기 2');
+});
+
+test('parseMarkdownToTree는 목록이 없으면 null을 반환한다', () => {
+  assert.strictEqual(TreeModel.parseMarkdownToTree('그냥 문단입니다.'), null);
+  assert.strictEqual(TreeModel.parseMarkdownToTree(''), null);
+});
+
+test('importTreeFromFileContent는 확장자로 JSON/마크다운을 구분한다', () => {
+  const root = TreeModel.createNode('루트');
+  TreeModel.addChild(root, '예', TreeModel.createNode('결과'));
+
+  const fromJson = TreeModel.importTreeFromFileContent(JSON.stringify(root), 'tree.json');
+  assert.strictEqual(fromJson.text, '루트');
+
+  const fromMd = TreeModel.importTreeFromFileContent(TreeModel.treeToMarkdown(root), 'tree.md');
+  assert.strictEqual(fromMd.text, '루트');
+  assert.strictEqual(fromMd.children[0].label, '예');
+
+  assert.throws(() => TreeModel.importTreeFromFileContent('{"bad": true}', 'tree.json'));
+  assert.throws(() => TreeModel.importTreeFromFileContent('그냥 텍스트', 'tree.md'));
+});
+
 console.log(`\n${passed} test(s) passed.`);
