@@ -69,6 +69,46 @@
     parentNode.children = parentNode.children.filter((e) => e.id !== edgeId);
   }
 
+  /** node와 그 아래 모든 하위 노드/엣지의 id를 모은다. */
+  function collectSubtreeIds(node) {
+    const nodeIds = new Set();
+    const edgeIds = new Set();
+    function visit(n) {
+      nodeIds.add(n.id);
+      for (const edge of n.children || []) {
+        edgeIds.add(edge.id);
+        visit(edge.node);
+      }
+    }
+    visit(node);
+    return { nodeIds, edgeIds };
+  }
+
+  /**
+   * 특정 분기(엣지)를 강조했을 때 흐리게 표시할 노드/엣지 id를 계산한다.
+   * 강조된 엣지와 같은 부모를 둔 "선택받지 않은" 형제 분기들과 그 하위 트리 전체를
+   * 흐림 대상으로 삼는다. 강조된 엣지의 조상이나 무관한 다른 가지는 대상에서 제외된다.
+   * highlightedEdgeId가 없거나 트리에서 찾을 수 없으면 빈 집합을 반환한다.
+   */
+  function computeDimmedIds(rootNode, highlightedEdgeId) {
+    const empty = { nodeIds: new Set(), edgeIds: new Set() };
+    if (!highlightedEdgeId) return empty;
+    const found = findEdge(rootNode, highlightedEdgeId);
+    if (!found) return empty;
+
+    const { parent } = found;
+    const nodeIds = new Set();
+    const edgeIds = new Set();
+    for (const sibling of parent.children) {
+      if (sibling.id === highlightedEdgeId) continue;
+      edgeIds.add(sibling.id);
+      const sub = collectSubtreeIds(sibling.node);
+      sub.nodeIds.forEach((id) => nodeIds.add(id));
+      sub.edgeIds.forEach((id) => edgeIds.add(id));
+    }
+    return { nodeIds, edgeIds };
+  }
+
   /**
    * 분기 입력 문자열을 "/"로 구분된 여러 분기 이름으로 나눈다.
    * 예: "예 / 아니오 / 보류" -> ["예", "아니오", "보류"]
@@ -255,6 +295,8 @@
     findNode,
     findEdge,
     removeChildEdge,
+    collectSubtreeIds,
+    computeDimmedIds,
     parseBranchLabels,
     computeLayout,
     countNodes,

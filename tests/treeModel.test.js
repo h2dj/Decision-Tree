@@ -132,6 +132,64 @@ function stripIds(node) {
   };
 }
 
+test('collectSubtreeIds는 노드와 하위 노드/엣지 id를 모두 모은다', () => {
+  const root = TreeModel.createNode('root');
+  const a = TreeModel.addChild(root, 'A');
+  const aa = TreeModel.addChild(a, 'AA');
+  TreeModel.addChild(root, 'B');
+
+  const { nodeIds, edgeIds } = TreeModel.collectSubtreeIds(a);
+  assert.deepStrictEqual([...nodeIds].sort(), [a.id, aa.id].sort());
+  const edgeToAA = a.children[0];
+  assert.deepStrictEqual([...edgeIds], [edgeToAA.id]);
+});
+
+test('computeDimmedIds는 강조된 분기의 형제 분기와 그 하위 트리만 흐림 대상으로 삼는다', () => {
+  const root = TreeModel.createNode('오늘 배포를 진행할까요?');
+  const yesNode = TreeModel.addChild(root, '예', TreeModel.createNode('모든 테스트가 통과했나요?'));
+  const noNode = TreeModel.addChild(root, '아니오', TreeModel.createNode('배포 보류'));
+  const yesYesNode = TreeModel.addChild(yesNode, '예', TreeModel.createNode('배포 진행'));
+  TreeModel.addChild(yesNode, '아니오', TreeModel.createNode('테스트 수정 후 재검토'));
+
+  const yesEdgeId = root.children.find((e) => e.label === '예').id;
+  const noEdgeId = root.children.find((e) => e.label === '아니오').id;
+
+  const dimmed = TreeModel.computeDimmedIds(root, yesEdgeId);
+  // '아니오' 분기(및 하위 '배포 보류')만 흐려지고, '예' 쪽(및 그 하위)은 대상에서 빠진다.
+  assert.strictEqual(dimmed.edgeIds.has(noEdgeId), true);
+  assert.strictEqual(dimmed.nodeIds.has(noNode.id), true);
+  assert.strictEqual(dimmed.nodeIds.has(yesNode.id), false);
+  assert.strictEqual(dimmed.nodeIds.has(yesYesNode.id), false);
+  assert.strictEqual(dimmed.nodeIds.has(root.id), false);
+});
+
+test('computeDimmedIds는 깊은 곳의 분기를 강조해도 그 조상/무관한 가지는 흐리지 않는다', () => {
+  const root = TreeModel.createNode('root');
+  const yesNode = TreeModel.addChild(root, '예', TreeModel.createNode('Q2'));
+  TreeModel.addChild(root, '아니오', TreeModel.createNode('결과B'));
+  TreeModel.addChild(yesNode, '예', TreeModel.createNode('결과C'));
+  const deepNoNode = TreeModel.addChild(yesNode, '아니오', TreeModel.createNode('결과D'));
+
+  const deepYesEdgeId = yesNode.children.find((e) => e.label === '예').id;
+  const deepNoEdgeId = yesNode.children.find((e) => e.label === '아니오').id;
+
+  const dimmed = TreeModel.computeDimmedIds(root, deepYesEdgeId);
+  assert.strictEqual(dimmed.edgeIds.has(deepNoEdgeId), true);
+  assert.strictEqual(dimmed.nodeIds.has(deepNoNode.id), true);
+  // 강조된 분기의 부모(Q2)나 그 위 루트, 완전히 무관한 '아니오' 최상위 가지는 흐림 대상이 아니다.
+  assert.strictEqual(dimmed.nodeIds.has(yesNode.id), false);
+  assert.strictEqual(dimmed.nodeIds.has(root.id), false);
+  const topNoEdge = root.children.find((e) => e.label === '아니오');
+  assert.strictEqual(dimmed.edgeIds.has(topNoEdge.id), false);
+});
+
+test('computeDimmedIds는 강조 대상이 없거나 존재하지 않으면 빈 집합을 반환한다', () => {
+  const root = TreeModel.createNode('root');
+  TreeModel.addChild(root, 'A');
+  assert.deepStrictEqual(TreeModel.computeDimmedIds(root, null), { nodeIds: new Set(), edgeIds: new Set() });
+  assert.deepStrictEqual(TreeModel.computeDimmedIds(root, 'nope'), { nodeIds: new Set(), edgeIds: new Set() });
+});
+
 test('treeToMarkdown은 중첩 불릿 목록을 만든다', () => {
   const root = TreeModel.createNode('오늘 배포를 진행할까요?');
   const yes = TreeModel.addChild(root, '예', TreeModel.createNode('모든 테스트가 통과했나요?'));
