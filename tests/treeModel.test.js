@@ -132,6 +132,20 @@ function stripIds(node) {
   };
 }
 
+test('findEdgePath는 루트에서 해당 엣지까지의 경로를 얕은 순서로 반환한다', () => {
+  const root = TreeModel.createNode('root');
+  const a = TreeModel.addChild(root, 'A');
+  const aa = TreeModel.addChild(a, 'AA');
+  TreeModel.addChild(root, 'B');
+
+  const edgeToA = root.children.find((e) => e.node === a);
+  const edgeToAA = a.children.find((e) => e.node === aa);
+
+  assert.deepStrictEqual(TreeModel.findEdgePath(root, edgeToAA.id), [edgeToA, edgeToAA]);
+  assert.deepStrictEqual(TreeModel.findEdgePath(root, edgeToA.id), [edgeToA]);
+  assert.strictEqual(TreeModel.findEdgePath(root, 'nope'), null);
+});
+
 test('collectSubtreeIds는 노드와 하위 노드/엣지 id를 모두 모은다', () => {
   const root = TreeModel.createNode('root');
   const a = TreeModel.addChild(root, 'A');
@@ -163,24 +177,49 @@ test('computeDimmedIds는 강조된 분기의 형제 분기와 그 하위 트리
   assert.strictEqual(dimmed.nodeIds.has(root.id), false);
 });
 
-test('computeDimmedIds는 깊은 곳의 분기를 강조해도 그 조상/무관한 가지는 흐리지 않는다', () => {
+test('computeDimmedIds는 깊은 곳의 분기를 강조하면 그 경로의 조상 단계에서 갈라진 다른 분기도 함께 흐린다', () => {
   const root = TreeModel.createNode('root');
   const yesNode = TreeModel.addChild(root, '예', TreeModel.createNode('Q2'));
-  TreeModel.addChild(root, '아니오', TreeModel.createNode('결과B'));
+  const topNoNode = TreeModel.addChild(root, '아니오', TreeModel.createNode('결과B'));
   TreeModel.addChild(yesNode, '예', TreeModel.createNode('결과C'));
   const deepNoNode = TreeModel.addChild(yesNode, '아니오', TreeModel.createNode('결과D'));
 
   const deepYesEdgeId = yesNode.children.find((e) => e.label === '예').id;
   const deepNoEdgeId = yesNode.children.find((e) => e.label === '아니오').id;
+  const topNoEdgeId = root.children.find((e) => e.label === '아니오').id;
 
   const dimmed = TreeModel.computeDimmedIds(root, deepYesEdgeId);
+  // 같은 부모(Q2) 아래 형제 분기는 흐려진다.
   assert.strictEqual(dimmed.edgeIds.has(deepNoEdgeId), true);
   assert.strictEqual(dimmed.nodeIds.has(deepNoNode.id), true);
-  // 강조된 분기의 부모(Q2)나 그 위 루트, 완전히 무관한 '아니오' 최상위 가지는 흐림 대상이 아니다.
+  // 강조된 분기로 갈 수 없는 최상위 단계의 '아니오' 분기(및 그 하위 '결과B')도 함께 흐려진다.
+  assert.strictEqual(dimmed.edgeIds.has(topNoEdgeId), true);
+  assert.strictEqual(dimmed.nodeIds.has(topNoNode.id), true);
+  // 경로 위에 있는 루트/Q2/강조된 엣지 자신은 흐림 대상이 아니다.
   assert.strictEqual(dimmed.nodeIds.has(yesNode.id), false);
   assert.strictEqual(dimmed.nodeIds.has(root.id), false);
-  const topNoEdge = root.children.find((e) => e.label === '아니오');
-  assert.strictEqual(dimmed.edgeIds.has(topNoEdge.id), false);
+  assert.strictEqual(dimmed.edgeIds.has(deepYesEdgeId), false);
+});
+
+test('computeDimmedIds: 상위 분기를 고른 뒤 그 하위 분기를 골라도 상위의 다른 분기는 계속 흐려진 채로 유지된다', () => {
+  const root = TreeModel.createNode('root');
+  const yesNode = TreeModel.addChild(root, '예', TreeModel.createNode('Q2'));
+  TreeModel.addChild(root, '아니오', TreeModel.createNode('결과B'));
+  const deepYesNode = TreeModel.addChild(yesNode, '예', TreeModel.createNode('결과C'));
+  TreeModel.addChild(yesNode, '아니오', TreeModel.createNode('결과D'));
+
+  const topYesEdgeId = root.children.find((e) => e.label === '예').id;
+  const topNoEdgeId = root.children.find((e) => e.label === '아니오').id;
+  const deepYesEdgeId = yesNode.children.find((e) => e.node === deepYesNode).id;
+
+  // 1단계: 최상위 '예'를 고르면 최상위 '아니오'가 흐려진다.
+  const afterTopPick = TreeModel.computeDimmedIds(root, topYesEdgeId);
+  assert.strictEqual(afterTopPick.edgeIds.has(topNoEdgeId), true);
+
+  // 2단계: 그 아래(Q2의) '예'를 다시 고르더라도, 최상위 '아니오'는 다시 밝아지지 않고
+  // 계속 흐려진 상태로 남아 있어야 한다.
+  const afterDeepPick = TreeModel.computeDimmedIds(root, deepYesEdgeId);
+  assert.strictEqual(afterDeepPick.edgeIds.has(topNoEdgeId), true);
 });
 
 test('computeDimmedIds는 강조 대상이 없거나 존재하지 않으면 빈 집합을 반환한다', () => {

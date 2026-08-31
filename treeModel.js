@@ -85,26 +85,48 @@
   }
 
   /**
+   * 루트에서 특정 엣지까지의 경로를 엣지 배열로 반환한다(그 엣지 자신 포함, 얕은 순서).
+   * 찾지 못하면 null.
+   */
+  function findEdgePath(rootNode, edgeId) {
+    function search(node, path) {
+      for (const edge of node.children || []) {
+        const nextPath = path.concat(edge);
+        if (edge.id === edgeId) return nextPath;
+        const found = search(edge.node, nextPath);
+        if (found) return found;
+      }
+      return null;
+    }
+    return search(rootNode, []);
+  }
+
+  /**
    * 특정 분기(엣지)를 강조했을 때 흐리게 표시할 노드/엣지 id를 계산한다.
-   * 강조된 엣지와 같은 부모를 둔 "선택받지 않은" 형제 분기들과 그 하위 트리 전체를
-   * 흐림 대상으로 삼는다. 강조된 엣지의 조상이나 무관한 다른 가지는 대상에서 제외된다.
-   * highlightedEdgeId가 없거나 트리에서 찾을 수 없으면 빈 집합을 반환한다.
+   * 루트에서 강조된 엣지까지 내려가는 경로의 매 단계마다, 그 경로에 있지 않은
+   * 형제 분기들과 그 하위 트리 전체를 흐림 대상으로 삼는다 — 즉 하위 분기를 강조해도
+   * 그 노드에 도달할 수 없는 상위 단계의 다른 분기들까지 함께 흐려진다.
+   * 경로 위의 노드/엣지(루트, 조상, 강조된 엣지 자신)와 강조된 엣지 아래 하위 트리는
+   * 흐림 대상에서 제외된다. highlightedEdgeId가 없거나 트리에서 찾을 수 없으면 빈 집합을 반환한다.
    */
   function computeDimmedIds(rootNode, highlightedEdgeId) {
     const empty = { nodeIds: new Set(), edgeIds: new Set() };
     if (!highlightedEdgeId) return empty;
-    const found = findEdge(rootNode, highlightedEdgeId);
-    if (!found) return empty;
+    const path = findEdgePath(rootNode, highlightedEdgeId);
+    if (!path) return empty;
 
-    const { parent } = found;
     const nodeIds = new Set();
     const edgeIds = new Set();
-    for (const sibling of parent.children) {
-      if (sibling.id === highlightedEdgeId) continue;
-      edgeIds.add(sibling.id);
-      const sub = collectSubtreeIds(sibling.node);
-      sub.nodeIds.forEach((id) => nodeIds.add(id));
-      sub.edgeIds.forEach((id) => edgeIds.add(id));
+    let parent = rootNode;
+    for (const edgeOnPath of path) {
+      for (const sibling of parent.children) {
+        if (sibling.id === edgeOnPath.id) continue;
+        edgeIds.add(sibling.id);
+        const sub = collectSubtreeIds(sibling.node);
+        sub.nodeIds.forEach((id) => nodeIds.add(id));
+        sub.edgeIds.forEach((id) => edgeIds.add(id));
+      }
+      parent = edgeOnPath.node;
     }
     return { nodeIds, edgeIds };
   }
@@ -294,6 +316,7 @@
     isLeaf,
     findNode,
     findEdge,
+    findEdgePath,
     removeChildEdge,
     collectSubtreeIds,
     computeDimmedIds,
