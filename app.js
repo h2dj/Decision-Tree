@@ -37,6 +37,11 @@
     btnZoomReset: document.getElementById('btn-zoom-reset'),
     fileInput: document.getElementById('file-input'),
     autosaveIndicator: document.getElementById('autosave-indicator'),
+    toolbar: document.getElementById('toolbar'),
+    btnMenuToggle: document.getElementById('btn-menu-toggle'),
+    sidebar: document.getElementById('sidebar'),
+    sidebarBackdrop: document.getElementById('sidebar-backdrop'),
+    btnCloseSidebar: document.getElementById('btn-close-sidebar'),
   };
 
   // --- 상태 ---
@@ -277,7 +282,27 @@
       n.classList.toggle('selected', n.dataset.id === id);
     });
     renderSidebar();
+    openSidebarMobile();
   }
+
+  // --- 모바일 사이드바 (오른쪽에서 슬라이드하는 패널) ---
+  function isMobile() {
+    return window.matchMedia('(max-width: 760px)').matches;
+  }
+
+  function openSidebarMobile() {
+    if (!isMobile()) return;
+    el.sidebar.classList.add('open');
+    el.sidebarBackdrop.hidden = false;
+  }
+
+  function closeSidebarMobile() {
+    el.sidebar.classList.remove('open');
+    el.sidebarBackdrop.hidden = true;
+  }
+
+  el.btnCloseSidebar.addEventListener('click', closeSidebarMobile);
+  el.sidebarBackdrop.addEventListener('click', closeSidebarMobile);
 
   function renderSidebar() {
     const found = TreeModel.findNode(tree, selectedId);
@@ -398,6 +423,23 @@
   el.btnDirTb.addEventListener('click', () => setDirection('TB'));
   el.btnDirLr.addEventListener('click', () => setDirection('LR'));
 
+  // --- 모바일 햄버거 메뉴 (툴바를 접었다 펼치는 드롭다운) ---
+  el.btnMenuToggle.addEventListener('click', () => {
+    el.toolbar.classList.toggle('open');
+  });
+  // 확대/축소 버튼은 연속으로 누를 수 있어 메뉴를 열어두고, 그 외 버튼은 동작 후 메뉴를 닫는다.
+  el.toolbar.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (btn && !btn.id.startsWith('btn-zoom')) {
+      el.toolbar.classList.remove('open');
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!el.toolbar.classList.contains('open')) return;
+    if (el.toolbar.contains(e.target) || el.btnMenuToggle.contains(e.target)) return;
+    el.toolbar.classList.remove('open');
+  });
+
   function downloadBlob(content, filename, type) {
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
@@ -498,12 +540,22 @@
 
   el.btnZoomIn.addEventListener('click', () => setScale(scale * 1.15));
   el.btnZoomOut.addEventListener('click', () => setScale(scale / 1.15));
-  el.btnZoomReset.addEventListener('click', () => {
-    scale = 1;
-    panX = PADDING;
-    panY = PADDING;
+  // 트리 전체가 캔버스 안에 들어오도록 배율/이동을 계산해 화면에 맞춘다.
+  // 트리가 캔버스보다 작을 때는 확대하지 않고(1배 상한) 가운데로만 옮긴다.
+  function fitToView() {
+    const { width, height } = computePixelPositions();
+    const canvasRect = el.canvas.getBoundingClientRect();
+    const margin = 24;
+    const availW = Math.max(canvasRect.width - margin * 2, 50);
+    const availH = Math.max(canvasRect.height - margin * 2, 50);
+    const nextScale = Math.min(availW / width, availH / height, 1);
+    scale = Math.max(0.15, Math.min(2.5, nextScale));
+    panX = (canvasRect.width - width * scale) / 2;
+    panY = (canvasRect.height - height * scale) / 2;
     applyTransform();
-  });
+  }
+
+  el.btnZoomReset.addEventListener('click', fitToView);
 
   el.canvas.addEventListener(
     'wheel',
@@ -532,6 +584,39 @@
   window.addEventListener('mouseup', () => {
     isPanning = false;
     el.canvas.classList.remove('panning');
+  });
+
+  // --- 터치로 캔버스 패닝 (모바일) ---
+  // 노드/분기 라벨을 직접 터치한 경우는 탭(선택/편집)으로 다뤄야 하므로 패닝에서 제외한다.
+  function touchPoint(e) {
+    const t = e.touches[0] || e.changedTouches[0];
+    return { x: t.clientX, y: t.clientY };
+  }
+
+  el.canvas.addEventListener(
+    'touchstart',
+    (e) => {
+      if (e.target.closest('.node') || e.target.closest('.edge-label')) return;
+      const p = touchPoint(e);
+      isPanning = true;
+      panStart = { x: p.x, y: p.y, panX, panY };
+    },
+    { passive: true }
+  );
+  el.canvas.addEventListener(
+    'touchmove',
+    (e) => {
+      if (!isPanning) return;
+      e.preventDefault(); // 브라우저의 스크롤/바운스와 충돌하지 않도록
+      const p = touchPoint(e);
+      panX = panStart.panX + (p.x - panStart.x);
+      panY = panStart.panY + (p.y - panStart.y);
+      applyTransform();
+    },
+    { passive: false }
+  );
+  el.canvas.addEventListener('touchend', () => {
+    isPanning = false;
   });
 
   // --- 키보드 단축키 ---
@@ -572,4 +657,5 @@
   // --- 초기 렌더 ---
   updateDirButtons();
   render();
+  fitToView();
 })();
