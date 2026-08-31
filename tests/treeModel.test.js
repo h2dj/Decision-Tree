@@ -98,6 +98,23 @@ test('countNodes는 트리의 전체 노드 수를 반환한다', () => {
   assert.strictEqual(TreeModel.countNodes(root), 4);
 });
 
+test('parseBranchLabels는 "/"로 구분된 여러 분기 이름을 반환한다', () => {
+  assert.deepStrictEqual(TreeModel.parseBranchLabels('예 / 아니오 / 보류'), ['예', '아니오', '보류']);
+  assert.deepStrictEqual(TreeModel.parseBranchLabels('예/아니오'), ['예', '아니오']);
+});
+
+test('parseBranchLabels는 공백/빈 항목을 정리하고, 슬래시가 없으면 하나만 반환한다', () => {
+  assert.deepStrictEqual(TreeModel.parseBranchLabels('  예  '), ['예']);
+  assert.deepStrictEqual(TreeModel.parseBranchLabels('예 // 아니오 /'), ['예', '아니오']);
+});
+
+test('parseBranchLabels는 입력이 비어 있으면 기본값 하나를 반환한다', () => {
+  assert.deepStrictEqual(TreeModel.parseBranchLabels(''), ['분기']);
+  assert.deepStrictEqual(TreeModel.parseBranchLabels('   '), ['분기']);
+  assert.deepStrictEqual(TreeModel.parseBranchLabels(null), ['분기']);
+  assert.deepStrictEqual(TreeModel.parseBranchLabels(' / / '), ['분기']);
+});
+
 test('isValidTree는 형태가 올바른 트리만 통과시킨다', () => {
   const root = TreeModel.createNode('root');
   TreeModel.addChild(root, 'A');

@@ -287,15 +287,23 @@
     el.btnDeleteNode.disabled = node.id === tree.id;
   }
 
-  el.btnAddBranch.addEventListener('click', async () => {
+  // 선택된 노드에 분기를 추가한다. "예 / 아니오 / 보류"처럼 "/"로 구분해 입력하면
+  // 한 번에 여러 분기를 만든다. 사이드바 버튼과 Tab/Insert 단축키가 이 함수를 공유한다.
+  async function promptAndAddBranches() {
     const found = TreeModel.findNode(tree, selectedId);
     if (!found) return;
-    const label = await askText('분기 이름을 입력하세요 (예: 예 / 아니오)', '');
-    if (label === null) return;
-    TreeModel.addChild(found.node, label || '분기');
+    const raw = await askText(
+      '분기 이름을 입력하세요 ("/"로 구분하면 여러 개를 한 번에 추가합니다. 예: 예 / 아니오 / 보류)',
+      ''
+    );
+    if (raw === null) return;
+    const labels = TreeModel.parseBranchLabels(raw);
+    labels.forEach((label) => TreeModel.addChild(found.node, label));
     saveToStorage();
     render();
-  });
+  }
+
+  el.btnAddBranch.addEventListener('click', promptAndAddBranches);
 
   el.btnDeleteNode.addEventListener('click', () => {
     const found = TreeModel.findNode(tree, selectedId);
@@ -478,12 +486,14 @@
 
   // --- 키보드 단축키 ---
   window.addEventListener('keydown', (e) => {
-    const activeIsEditable =
-      document.activeElement &&
-      (document.activeElement.isContentEditable ||
-        document.activeElement.tagName === 'INPUT');
-    if (activeIsEditable) return;
-    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+    if (document.querySelector('.modal-overlay')) return; // 모달이 떠 있으면 무시
+
+    const active = document.activeElement;
+    const activeIsEditable = active && (active.isContentEditable || active.tagName === 'INPUT');
+
+    // Delete/Backspace는 텍스트를 입력/수정하는 중에는 일반적인 삭제로 동작해야 하므로
+    // 편집 가능한 요소에 포커스가 있을 때는 노드 삭제 단축키를 무시한다.
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !activeIsEditable && selectedId) {
       const found = TreeModel.findNode(tree, selectedId);
       if (found && found.parent) {
         if (confirm('선택한 노드와 그 아래 하위 트리를 모두 삭제할까요?')) {
@@ -493,6 +503,19 @@
           render();
         }
       }
+      return;
+    }
+
+    // Insert 키(맥 키보드에서는 Tab)로 선택된 노드에 분기를 추가한다.
+    // 노드를 클릭하면 텍스트가 바로 편집 가능한 상태(contentEditable)가 되므로,
+    // 포커스가 캔버스 안(노드 텍스트 등)에 있을 때는 편집 중이어도 단축키를 그대로 허용한다.
+    // 반대로 툴바 버튼이나 사이드바 입력창 등 캔버스 밖에서는 Tab의 기본 동작(포커스 이동)을
+    // 그대로 두어야 하므로 무시한다.
+    if ((e.key === 'Insert' || e.key === 'Tab') && selectedId) {
+      const focusOutsideCanvas = active && active !== document.body && !el.canvas.contains(active);
+      if (focusOutsideCanvas) return;
+      e.preventDefault();
+      promptAndAddBranches();
     }
   });
 
